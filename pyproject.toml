@@ -13,6 +13,13 @@ readme = "README.md"
 [project.urls]
 Repository = "https://github.com/sunnytuladhar/baked-vector"
 
+[project.optional-dependencies]
+st = ["sentence-transformers>=3.0"]
+openai = ["openai>=1.0"]
+bedrock = ["boto3>=1.34"]
+google = ["google-generativeai>=0.8"]
+anthropic = ["anthropic>=0.40"]
+
 [dependency-groups]
 dev = ["pytest>=8"]
 

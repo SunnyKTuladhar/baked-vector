@@ -49,11 +49,39 @@ class VectorStore:
         self._metadata.append(metadata or {})
         return idx
 
+    def add_many(self, embeddings: list[list[float]], metadatas: list[dict[str, Any]] | None = None) -> list[int]:
+        """Add multiple vectors at once. Returns list of assigned ids."""
+        if metadatas is None:
+            metadatas = [{} for _ in embeddings]
+        if len(embeddings) != len(metadatas):
+            raise ValueError(
+                f"Length mismatch: {len(embeddings)} embeddings but {len(metadatas)} metadatas."
+            )
+        return [self.add(emb, meta) for emb, meta in zip(embeddings, metadatas)]
+
     def remove(self, id: int) -> None:
         """Soft-delete a vector by id. Call save() to persist."""
         if id < 0 or id >= len(self._vectors):
             raise IndexError(f"Id {id} out of range.")
         self._deleted.add(id)
+
+    def update(
+        self,
+        id: int,
+        embedding: list[float] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Update vector and/or metadata for an existing id. At least one must be provided."""
+        if embedding is None and metadata is None:
+            raise ValueError("At least one of embedding or metadata must be provided.")
+        if id < 0 or id >= len(self._vectors) or id in self._deleted:
+            raise IndexError(f"Id {id} is out of range or has been deleted.")
+        if embedding is not None:
+            if self._dim is not None and len(embedding) != self._dim:
+                raise ValueError(f"Dimension mismatch: expected {self._dim}, got {len(embedding)}.")
+            self._vectors[id] = _normalize(embedding)
+        if metadata is not None:
+            self._metadata[id] = metadata
 
     def save(self) -> None:
         """Flush all data to disk, compacting deleted entries."""

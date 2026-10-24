@@ -82,7 +82,49 @@ Pure Python, brute-force scan. Rough query times:
 | 5k | ~0.1s | ~0.3s | ~0.5s |
 | 10k | ~0.3s | ~0.6s | ~1–2s |
 
-## Providers
+## EmbeddingStore
+
+`EmbeddingStore` wraps `VectorStore` and handles embedding automatically. Install an extra for your provider, pass the adapter, and work with text directly.
+
+```python
+import baked
+
+embed = baked.openai_embedder()  # see adapters below
+store = baked.EmbeddingStore("mydata", embedder=embed)
+
+store.add("Wealth is not money...", {"title": "How to Make Wealth"})
+store.save()
+
+results = store.search("how startups create value", top_k=3)
+# [({"text": "...", "title": "..."}, score), ...]
+```
+
+`EmbeddingStore` exposes the same `add`, `remove`, `save`, `search`, and `len` interface as `VectorStore`, but takes `str` instead of `list[float]`. The original text is stored in metadata under `"text"` automatically.
+
+### Adapters
+
+| Provider | Function | Install extra |
+|----------|----------|---------------|
+| OpenAI | `openai_embedder(model, api_key)` | `baked-vector[openai]` |
+| Azure OpenAI | `azure_openai_embedder(deployment, endpoint, api_key, api_version)` | `baked-vector[openai]` |
+| AWS Bedrock | `bedrock_embedder(model_id, region_name)` | `baked-vector[bedrock]` |
+| Google | `google_embedder(model, api_key)` | `baked-vector[google]` |
+| Local (sentence-transformers) | `sentence_transformer_embedder(model_name)` | `baked-vector[st]` |
+
+```bash
+pip install baked-vector[openai]
+pip install baked-vector[bedrock]
+pip install baked-vector[google]
+pip install baked-vector[st]
+```
+
+Defaults: OpenAI → `text-embedding-3-small`, Bedrock → `amazon.titan-embed-text-v2:0`, Google → `models/text-embedding-004`, local → `all-MiniLM-L6-v2`.
+
+You can also pass any `(str) -> list[float]` callable as `embedder` — no adapter required.
+
+---
+
+## Providers (manual)
 
 baked-vector stores and searches vectors — bring embeddings from any provider.
 
