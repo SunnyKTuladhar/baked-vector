@@ -148,3 +148,100 @@ def test_save_empty_store_removes_files(tmp_path):
     store.save()
     assert not os.path.exists(path + ".vecs")
     assert not os.path.exists(path + ".json")
+
+
+# ------------------------------------------------------------------
+# update() tests
+# ------------------------------------------------------------------
+
+def test_update_embedding(tmp_path):
+    """Updating a vector changes search results."""
+    store = VectorStore(str(tmp_path / "db"))
+    store.add(make_vec(0), {"label": "right"})   # id 0
+    store.add(make_vec(90), {"label": "up"})     # id 1
+
+    # Before update: searching near 90° returns "up" first
+    results = store.search(make_vec(90), top_k=1)
+    assert results[0][0]["label"] == "up"
+
+    # Update id 1's vector to point at 0°
+    store.update(1, embedding=make_vec(0))
+
+    # After update: searching near 0° returns "right" and updated id 1 together
+    results = store.search(make_vec(0), top_k=2)
+    labels = [r[0]["label"] for r in results]
+    assert "right" in labels
+    assert "up" in labels  # metadata unchanged
+
+    # Searching near 90° no longer returns id 1 as top result
+    results = store.search(make_vec(90), top_k=1)
+    assert results[0][0]["label"] == "right"
+
+
+def test_update_metadata(tmp_path):
+    """Updating only metadata leaves the vector unchanged."""
+    store = VectorStore(str(tmp_path / "db"))
+    store.add(make_vec(0), {"label": "right"})   # id 0
+    store.add(make_vec(90), {"label": "up"})     # id 1
+
+    original_vec = list(store._vectors[1])
+    store.update(1, metadata={"label": "top", "updated": True})
+
+    assert store._metadata[1] == {"label": "top", "updated": True}
+    assert store._vectors[1] == original_vec
+
+
+def test_update_both(tmp_path):
+    """Updating both embedding and metadata changes both."""
+    store = VectorStore(str(tmp_path / "db"))
+    store.add(make_vec(0), {"label": "right"})   # id 0
+
+    store.update(0, embedding=make_vec(90), metadata={"label": "up-now"})
+
+    assert store._metadata[0]["label"] == "up-now"
+    results = store.search(make_vec(90), top_k=1)
+    assert results[0][0]["label"] == "up-now"
+
+
+def test_update_deleted_raises(tmp_path):
+    """Updating a soft-deleted id raises IndexError."""
+    store = VectorStore(str(tmp_path / "db"))
+    store.add(make_vec(0), {"label": "right"})   # id 0
+    store.remove(0)
+
+    with pytest.raises(IndexError):
+        store.update(0, metadata={"label": "ghost"})
+
+
+def test_update_out_of_range_raises(tmp_path):
+    """Updating an id >= len raises IndexError."""
+    store = VectorStore(str(tmp_path / "db"))
+    store.add(make_vec(0), {"label": "right"})   # id 0
+
+    with pytest.raises(IndexError):
+        store.update(1, metadata={"label": "nope"})
+
+
+def test_update_neither_raises(tmp_path):
+    """Passing neither embedding nor metadata raises ValueError."""
+    store = VectorStore(str(tmp_path / "db"))
+    store.add(make_vec(0), {"label": "right"})   # id 0
+
+    with pytest.raises(ValueError):
+        store.update(0)
+
+
+def test_update_persists_after_save(tmp_path):
+    """Updated vector and metadata survive a save/reload cycle."""
+    path = str(tmp_path / "db")
+    store = VectorStore(path)
+    store.add(make_vec(0), {"label": "right"})   # id 0
+    store.add(make_vec(90), {"label": "up"})     # id 1
+
+    store.update(0, embedding=make_vec(45), metadata={"label": "diagonal"})
+    store.save()
+
+    store2 = VectorStore(path)
+    assert len(store2) == 2
+    results = store2.search(make_vec(45), top_k=1)
+    assert results[0][0]["label"] == "diagonal"
