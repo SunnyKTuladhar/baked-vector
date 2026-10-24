@@ -55,6 +55,24 @@ class VectorStore:
             raise IndexError(f"Id {id} out of range.")
         self._deleted.add(id)
 
+    def update(
+        self,
+        id: int,
+        embedding: list[float] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Update vector and/or metadata for an existing id. At least one must be provided."""
+        if embedding is None and metadata is None:
+            raise ValueError("At least one of embedding or metadata must be provided.")
+        if id < 0 or id >= len(self._vectors) or id in self._deleted:
+            raise IndexError(f"Id {id} is out of range or has been deleted.")
+        if embedding is not None:
+            if self._dim is not None and len(embedding) != self._dim:
+                raise ValueError(f"Dimension mismatch: expected {self._dim}, got {len(embedding)}.")
+            self._vectors[id] = _normalize(embedding)
+        if metadata is not None:
+            self._metadata[id] = metadata
+
     def save(self) -> None:
         """Flush all data to disk, compacting deleted entries."""
         active_ids = [i for i in range(len(self._vectors)) if i not in self._deleted]

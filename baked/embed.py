@@ -33,6 +33,20 @@ class EmbeddingStore:
     def remove(self, id: int) -> None:
         self._store.remove(id)
 
+    def update(
+        self,
+        id: int,
+        text: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Re-embed and/or update metadata for an existing entry."""
+        if text is not None:
+            vec = self._embed(text)
+            merged_meta = {"text": text, **(metadata or {})}
+            self._store.update(id, embedding=vec, metadata=merged_meta)
+        else:
+            self._store.update(id, metadata=metadata)
+
     def save(self) -> None:
         self._store.save()
 
