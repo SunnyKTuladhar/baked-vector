@@ -7,6 +7,7 @@ from .embed import (
     bedrock_embedder,
     google_embedder,
 )
+from .chunking import chunk_fixed, chunk_sentences, chunk_paragraphs, chunk_recursive
 
 __all__ = [
     "VectorStore",
@@ -16,5 +17,9 @@ __all__ = [
     "azure_openai_embedder",
     "bedrock_embedder",
     "google_embedder",
+    "chunk_fixed",
+    "chunk_sentences",
+    "chunk_paragraphs",
+    "chunk_recursive",
 ]
 __version__ = "0.1.0"
