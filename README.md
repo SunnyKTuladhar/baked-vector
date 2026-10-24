@@ -80,6 +80,83 @@ Pure Python, brute-force scan. Rough query times:
 | 5k | ~0.1s | ~0.3s | ~0.5s |
 | 10k | ~0.3s | ~0.6s | ~1–2s |
 
+## Providers
+
+baked-vector stores and searches vectors — bring embeddings from any provider.
+
+### OpenAI
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+def embed(text: str) -> list[float]:
+    resp = client.embeddings.create(model="text-embedding-3-small", input=text)
+    return resp.data[0].embedding
+
+store.add(embed("hello world"), {"text": "hello world"})
+results = store.search(embed("hi there"), top_k=5)
+```
+
+### AWS Bedrock (Titan)
+
+```python
+import json
+import boto3
+
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+def embed(text: str) -> list[float]:
+    resp = bedrock.invoke_model(
+        modelId="amazon.titan-embed-text-v2:0",
+        body=json.dumps({"inputText": text, "dimensions": 512}),
+    )
+    return json.loads(resp["body"].read())["embedding"]
+
+store.add(embed("hello world"), {"text": "hello world"})
+results = store.search(embed("hi there"), top_k=5)
+```
+
+### Azure OpenAI
+
+```python
+from openai import AzureOpenAI
+
+client = AzureOpenAI(
+    api_key="YOUR_KEY",
+    api_version="2024-02-01",
+    azure_endpoint="https://YOUR_RESOURCE.openai.azure.com",
+)
+
+def embed(text: str) -> list[float]:
+    resp = client.embeddings.create(model="YOUR_DEPLOYMENT_NAME", input=text)
+    return resp.data[0].embedding
+
+store.add(embed("hello world"), {"text": "hello world"})
+results = store.search(embed("hi there"), top_k=5)
+```
+
+### Cohere
+
+```python
+import cohere
+
+co = cohere.Client("YOUR_API_KEY")
+
+def embed(text: str) -> list[float]:
+    resp = co.embed(texts=[text], model="embed-english-v3.0", input_type="search_document")
+    return resp.embeddings[0]
+
+store.add(embed("hello world"), {"text": "hello world"})
+
+# use input_type="search_query" for query embeddings
+results = store.search(
+    co.embed(texts=["hi there"], model="embed-english-v3.0", input_type="search_query").embeddings[0],
+    top_k=5,
+)
+```
+
 ## License
 
 MIT
