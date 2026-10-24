@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "baked-vector"
+version = "0.1.0"
+description = "Zero-dependency vector store for small-scale embedding search."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+readme = "README.md"
+
+[project.urls]
+Repository = "https://github.com/sunnytuladhar/baked-vector"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
