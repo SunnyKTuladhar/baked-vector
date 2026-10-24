@@ -1,5 +1,18 @@
 # TODO
 
+## Release
+
+### Publish to PyPI
+- Create account at pypi.org + enable 2FA
+- Create API token (scoped to `baked-vector`)
+- Verify name is free: `pypi.org/project/baked-vector`
+- Test on TestPyPI first: `uv publish --publish-url https://test.pypi.org/legacy/ --token testpypi-...`
+- Publish: `uv build && uv publish --token pypi-...`
+
+---
+
+## Feature backlog
+
 Feature backlog for baked-vector, ordered by priority for RAG / chatbot use cases.
 
 ---
