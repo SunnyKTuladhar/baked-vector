@@ -141,7 +141,6 @@ def anthropic_llm(model: str = "claude-haiku-5-5", api_key: str | None = None) -
         msg = client.messages.create(
             model=model,
             max_tokens=1024,
-            output_config={"effort": "low"},
             messages=[{"role": "user", "content": prompt}],
         )
         return msg.content[0].text
