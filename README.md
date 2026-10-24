@@ -8,6 +8,8 @@ Designed for under 10,000 vectors. Bring your own embeddings.
 
 ```bash
 pip install baked-vector
+# or
+uv add baked-vector
 ```
 
 ## Usage
