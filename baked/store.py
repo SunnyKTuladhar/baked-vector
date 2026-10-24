@@ -49,6 +49,16 @@ class VectorStore:
         self._metadata.append(metadata or {})
         return idx
 
+    def add_many(self, embeddings: list[list[float]], metadatas: list[dict[str, Any]] | None = None) -> list[int]:
+        """Add multiple vectors at once. Returns list of assigned ids."""
+        if metadatas is None:
+            metadatas = [{} for _ in embeddings]
+        if len(embeddings) != len(metadatas):
+            raise ValueError(
+                f"Length mismatch: {len(embeddings)} embeddings but {len(metadatas)} metadatas."
+            )
+        return [self.add(emb, meta) for emb, meta in zip(embeddings, metadatas)]
+
     def remove(self, id: int) -> None:
         """Soft-delete a vector by id. Call save() to persist."""
         if id < 0 or id >= len(self._vectors):

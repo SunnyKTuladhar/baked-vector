@@ -104,6 +104,41 @@ def test_empty_search(tmp_path):
     assert results == []
 
 
+def test_add_many_basic(tmp_path):
+    store = VectorStore(str(tmp_path / "db"))
+    store.add_many(
+        [make_vec(0), make_vec(90), make_vec(45)],
+        [{"label": "right"}, {"label": "up"}, {"label": "diagonal"}],
+    )
+    results = store.search(make_vec(0), top_k=2)
+    assert results[0][0]["label"] == "right"
+    assert results[1][0]["label"] == "diagonal"
+
+
+def test_add_many_metadata_mismatch(tmp_path):
+    store = VectorStore(str(tmp_path / "db"))
+    with pytest.raises(ValueError, match="Length mismatch"):
+        store.add_many([make_vec(0), make_vec(90)], [{"label": "only one"}])
+
+
+def test_add_many_dim_mismatch(tmp_path):
+    store = VectorStore(str(tmp_path / "db"))
+    store.add_many([make_vec(0, dim=4)], [{}])
+    with pytest.raises(ValueError, match="Dimension mismatch"):
+        store.add_many([[1.0, 0.0]], [{}])
+
+
+def test_add_many_returns_ids(tmp_path):
+    store = VectorStore(str(tmp_path / "db"))
+    ids = store.add_many([make_vec(0), make_vec(45), make_vec(90)])
+    assert ids == [0, 1, 2]
+    # Add a single item first, then add_many — ids continue sequentially
+    store2 = VectorStore(str(tmp_path / "db2"))
+    store2.add(make_vec(10), {})
+    ids2 = store2.add_many([make_vec(20), make_vec(30)])
+    assert ids2 == [1, 2]
+
+
 def test_save_empty_store_removes_files(tmp_path):
     path = str(tmp_path / "db")
     store = VectorStore(path)

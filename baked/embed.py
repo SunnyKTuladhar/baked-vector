@@ -20,6 +20,16 @@ class EmbeddingStore:
         meta = {"text": text, **(metadata or {})}
         return self._store.add(vec, meta)
 
+    def add_many(self, texts: list[str], metadatas: list[dict[str, Any]] | None = None) -> list[int]:
+        """Embed and add multiple texts. Returns list of assigned ids."""
+        if metadatas is None:
+            metadatas = [{} for _ in texts]
+        if len(texts) != len(metadatas):
+            raise ValueError(
+                f"Length mismatch: {len(texts)} texts but {len(metadatas)} metadatas."
+            )
+        return [self.add(text, meta) for text, meta in zip(texts, metadatas)]
+
     def search(
         self,
         query: str,
