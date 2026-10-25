@@ -12,9 +12,27 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if version changed
+        id: version_check
+        run: |
+          CURRENT=$(grep '^version' pyproject.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+          PREVIOUS=$(git show HEAD~1:pyproject.toml 2>/dev/null | grep '^version' | head -1 | sed 's/.*= *"\(.*\)"/\1/' || echo "")
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "previous=$PREVIOUS" >> $GITHUB_OUTPUT
+          if [ "$CURRENT" != "$PREVIOUS" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
 
       - uses: astral-sh/setup-uv@v4
+        if: steps.version_check.outputs.changed == 'true'
 
       - run: uv build
+        if: steps.version_check.outputs.changed == 'true'
 
       - run: uv publish --publish-url https://test.pypi.org/legacy/
+        if: steps.version_check.outputs.changed == 'true'
