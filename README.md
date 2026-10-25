@@ -107,15 +107,29 @@ Vectors are L2-normalized at insert time. IDs are positional and shift after `sa
 
 ## Performance
 
-Pure Python, brute-force scan. Rough query times:
+Benchmarked on 109 Paul Graham essays split into **3,421 chunks** (~556 chars each), embedded with `all-MiniLM-L6-v2` (384-dim), on a consumer laptop CPU. 327 eval pairs, Recall@k and MRR measured across all pairs.
 
-| Vectors | 384-dim | 768-dim | 1536-dim |
-|---------|---------|---------|----------|
-| 1k | <0.1s | <0.1s | ~0.1s |
-| 5k | ~0.1s | ~0.3s | ~0.5s |
-| 10k | ~0.3s | ~0.6s | ~1–2s |
+### Retrieval quality
 
-Hybrid search adds a full BM25 corpus scan on top of the vector scan — expect roughly 2× the latency of pure semantic search at the same vector count.
+| Search mode | Recall@1 | Recall@3 | Recall@5 | Recall@10 | MRR@5 |
+|-------------|----------|----------|----------|-----------|-------|
+| Pure semantic | 0.667 | 0.801 | 0.841 | 0.878 | 0.734 |
+| Hybrid α=0.7 (lean semantic) | 0.795 | 0.905 | 0.927 | 0.948 | 0.848 |
+| **Hybrid α=0.5 (balanced)** | **0.820** | **0.908** | **0.936** | **0.954** | **0.866** |
+| Hybrid α=0.3 (lean BM25) | 0.810 | 0.902 | 0.920 | 0.948 | 0.857 |
+| Pure BM25 / keyword | 0.765 | 0.872 | 0.884 | 0.927 | 0.815 |
+
+Hybrid at α=0.5 beats pure semantic by **+9.5pp Recall@5** and pure BM25 by **+5.2pp**.
+
+### Query latency (3,421 vectors, 384-dim, top_k=5)
+
+| Search mode | avg | p50 | p95 |
+|-------------|-----|-----|-----|
+| Pure semantic (embed + scan) | 82ms | 82ms | 100ms |
+| Hybrid (embed + scan + BM25) | 187ms | 188ms | 209ms |
+| Pure BM25 (embed + BM25 scan) | 185ms | 186ms | 204ms |
+
+The 82ms end-to-end for pure semantic includes the local `sentence-transformers` embed call (~65ms) plus the in-memory dot-product scan (~17ms). Hybrid adds a BM25 corpus scan — roughly 2× total latency. With a remote embedder (e.g. Bedrock, OpenAI), the scan cost is negligible.
 
 ## EmbeddingStore
 
