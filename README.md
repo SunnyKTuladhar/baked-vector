@@ -42,16 +42,17 @@ results = store.search_many([vec1, vec2], top_k=5)
 
 ## API
 
-### `VectorStore(path)`
+### `VectorStore(path, text_field="text")`
 
-Loads from `<path>.vecs` and `<path>.json` if they exist, otherwise starts empty.
+Loads from `<path>.vecs` and `<path>.json` if they exist, otherwise starts empty. `text_field` names the metadata key used for BM25 keyword indexing in hybrid search.
 
 | Method | Description |
 |--------|-------------|
 | `add(embedding, metadata)` | Add a vector. Returns its id. |
 | `remove(id)` | Soft-delete. Takes effect on next `save()`. |
+| `update(id, embedding, metadata)` | Update vector and/or metadata in place. |
 | `save()` | Flush to disk, compacting deleted entries. |
-| `search(query, top_k, radius, filter)` | Find similar vectors. |
+| `search(query, top_k, radius, filter, text_query, alpha)` | Find similar vectors. |
 | `search_many(queries, top_k, radius, filter)` | Batch search. |
 | `len(store)` | Number of active vectors. |
 
@@ -60,8 +61,29 @@ Loads from `<path>.vecs` and `<path>.json` if they exist, otherwise starts empty
 - `top_k` — return top N results (default: 5)
 - `radius` — return all results with score ≥ threshold (overrides `top_k`)
 - `filter` — dict of key-value pairs that must match the metadata exactly
+- `text_query` — keyword query string for hybrid search (BM25 + semantic)
+- `alpha` — blend weight: `1.0` = pure semantic, `0.0` = pure BM25, `0.5` = balanced (default)
 
-Scores are cosine similarity in range [-1, 1]. Higher = more similar.
+Scores are cosine similarity in range [-1, 1] for pure semantic search. Hybrid scores are normalized to [0, 1].
+
+### Hybrid search
+
+Combine keyword and semantic search with a single call:
+
+```python
+store = baked.VectorStore("mydata", text_field="text")
+store.add(embedding, {"text": "python machine learning tutorial"})
+store.add(embedding2, {"text": "python snake reptile habitat"})
+
+# semantic only
+results = store.search(query_embedding, top_k=5)
+
+# hybrid — keyword + semantic, balanced
+results = store.search(query_embedding, text_query="machine learning", top_k=5, alpha=0.5)
+
+# pure keyword (BM25)
+results = store.search(query_embedding, text_query="machine learning", top_k=5, alpha=0.0)
+```
 
 ## Storage format
 

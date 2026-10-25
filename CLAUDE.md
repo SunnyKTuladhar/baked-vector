@@ -6,6 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Never commit or push without explicit user approval.
 
+## Versioning
+
+Follow semantic versioning: MAJOR.MINOR.PATCH
+
+- PATCH — bug fixes, no new API
+- MINOR — new features, backwards-compatible
+- MAJOR — breaking API changes
+
+When bumping the version:
+1. Update `version` in `pyproject.toml`
+2. Update `README.md` to document any new features or API changes
+
 ## Commands
 
 ```bash
