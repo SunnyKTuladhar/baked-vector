@@ -79,6 +79,11 @@ def run_eval(
     query_results: list[QueryResult] = []
 
     for pair in pairs:
+        if not pair.expected:
+            raise ValueError(
+                f"EvalPair has empty expected dict — every result would match. "
+                f"Set at least one key-value pair. (query={pair.query!r})"
+            )
         results = store.search(pair.query, top_k=top_k)
         hits = [meta for meta, _ in results]
         scores = [score for _, score in results]

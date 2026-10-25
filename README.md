@@ -4,6 +4,17 @@ Zero-dependency vector store for small-scale embedding search. No numpy, no serv
 
 Designed for under 10,000 vectors. Bring your own embeddings.
 
+## Why baked-vector?
+
+| | baked-vector | ChromaDB | FAISS |
+|---|---|---|---|
+| Install | `pip install baked-vector` | `pip install chromadb` + system deps | `pip install faiss-cpu` + numpy |
+| Dependencies | **0** | 20+ | numpy + native libs |
+| Setup | None | Server or persistent client | Index build |
+| Storage | Two plain files | SQLite + proprietary files | Binary index file |
+| Hybrid search | ✅ BM25 + semantic | ❌ | ❌ |
+| Best for | Small RAG, scripts, local tools | Mid-scale apps | High-scale ANN search |
+
 ## Install
 
 ```bash
@@ -53,7 +64,7 @@ Loads from `<path>.vecs` and `<path>.json` if they exist, otherwise starts empty
 | `update(id, embedding, metadata)` | Update vector and/or metadata in place. |
 | `save()` | Flush to disk, compacting deleted entries. |
 | `search(query, top_k, radius, filter, text_query, alpha)` | Find similar vectors. |
-| `search_many(queries, top_k, radius, filter)` | Batch search. |
+| `search_many(queries, top_k, radius, filter, text_query, alpha)` | Batch search. |
 | `len(store)` | Number of active vectors. |
 
 ### Search parameters
@@ -64,7 +75,7 @@ Loads from `<path>.vecs` and `<path>.json` if they exist, otherwise starts empty
 - `text_query` — keyword query string for hybrid search (BM25 + semantic)
 - `alpha` — blend weight: `1.0` = pure semantic, `0.0` = pure BM25, `0.5` = balanced (default)
 
-Scores are cosine similarity in range [-1, 1] for pure semantic search. Hybrid scores are normalized to [0, 1].
+Scores are cosine similarity in range [-1, 1] for pure semantic search. Hybrid scores are min-max normalized to [0, 1] across the result set — scores are relative, not absolute. The top result always scores 1.0 in hybrid mode.
 
 ### Hybrid search
 
@@ -103,6 +114,8 @@ Pure Python, brute-force scan. Rough query times:
 | 1k | <0.1s | <0.1s | ~0.1s |
 | 5k | ~0.1s | ~0.3s | ~0.5s |
 | 10k | ~0.3s | ~0.6s | ~1–2s |
+
+Hybrid search adds a full BM25 corpus scan on top of the vector scan — expect roughly 2× the latency of pure semantic search at the same vector count.
 
 ## EmbeddingStore
 
@@ -222,6 +235,28 @@ results = store.search(
     top_k=5,
 )
 ```
+
+## Chunking
+
+`baked` ships text chunking utilities for splitting documents before embedding. All are stdlib-only with no external dependencies.
+
+```python
+from baked import chunk_fixed, chunk_sentences, chunk_paragraphs, chunk_recursive
+
+# Fixed character window — good for code, transcripts, uniform text
+chunks = chunk_fixed(text, size=512, overlap=64)
+
+# Split on sentence boundaries (.!?) — good for prose
+chunks = chunk_sentences(text, max_size=512, overlap=1)
+
+# Split on blank lines — good for markdown, structured docs
+chunks = chunk_paragraphs(text, max_size=1024, overlap=0)
+
+# LangChain-style recursive — tries \n\n → \n → ". " → hard cut
+chunks = chunk_recursive(text, size=512, overlap=64)
+```
+
+All functions return `list[str]`. `max_size` / `size` is a soft limit for sentence and paragraph chunkers — a single item larger than the limit is kept as its own chunk.
 
 ## License
 

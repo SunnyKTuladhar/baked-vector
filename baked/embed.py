@@ -11,13 +11,15 @@ Embedder = Callable[[str], list[float]]
 class EmbeddingStore:
     """VectorStore wrapper that auto-embeds text via a provided embedder callable."""
 
-    def __init__(self, path: str, embedder: Embedder):
-        self._store = VectorStore(path)
+    def __init__(self, path: str, embedder: Embedder, text_field: str = "text"):
+        self._store = VectorStore(path, text_field=text_field)
         self._embed = embedder
+        self._text_field = text_field
 
     def add(self, text: str, metadata: dict[str, Any] | None = None) -> int:
         vec = self._embed(text)
-        meta = {"text": text, **(metadata or {})}
+        # text_field always set by us; user metadata cannot silently override it
+        meta = {**(metadata or {}), self._text_field: text}
         return self._store.add(vec, meta)
 
     def add_many(self, texts: list[str], metadatas: list[dict[str, Any]] | None = None) -> list[int]:
@@ -36,9 +38,14 @@ class EmbeddingStore:
         top_k: int = 5,
         radius: float | None = None,
         filter: dict[str, Any] | None = None,
+        text_query: str | None = None,
+        alpha: float = 0.5,
     ) -> list[tuple[dict[str, Any], float]]:
         vec = self._embed(query)
-        return self._store.search(vec, top_k=top_k, radius=radius, filter=filter)
+        return self._store.search(
+            vec, top_k=top_k, radius=radius, filter=filter,
+            text_query=text_query, alpha=alpha,
+        )
 
     def remove(self, id: int) -> None:
         self._store.remove(id)
@@ -50,12 +57,17 @@ class EmbeddingStore:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Re-embed and/or update metadata for an existing entry."""
+        if text is None and metadata is None:
+            raise ValueError("At least one of text or metadata must be provided.")
         if text is not None:
             vec = self._embed(text)
-            merged_meta = {"text": text, **(metadata or {})}
+            merged_meta = {**(metadata or {}), self._text_field: text}
             self._store.update(id, embedding=vec, metadata=merged_meta)
         else:
-            self._store.update(id, metadata=metadata)
+            # Metadata-only update: preserve existing text field
+            existing = dict(self._store._metadata[id])
+            merged = {**existing, **metadata}
+            self._store.update(id, metadata=merged)
 
     def save(self) -> None:
         self._store.save()

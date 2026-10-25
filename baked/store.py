@@ -14,6 +14,8 @@ _BM25_B = 0.75
 
 
 def _normalize(vec: list[float]) -> list[float]:
+    if not all(math.isfinite(x) for x in vec):
+        raise ValueError("Vector contains NaN or infinite values.")
     magnitude = math.sqrt(sum(x * x for x in vec))
     if magnitude == 0.0:
         raise ValueError("Cannot normalize a zero vector.")
@@ -90,17 +92,20 @@ class VectorStore:
 
     def add(self, embedding: list[float], metadata: dict[str, Any] | None = None) -> int:
         """Add a vector with optional metadata. Returns its id."""
-        if self._dim is None:
-            self._dim = len(embedding)
-        elif len(embedding) != self._dim:
+        if self._dim is not None and len(embedding) != self._dim:
             raise ValueError(f"Dimension mismatch: expected {self._dim}, got {len(embedding)}.")
 
-        normalized = _normalize(embedding)
+        normalized = _normalize(embedding)  # raises on zero/nan/inf
+        meta = dict(metadata or {})
+        tokens = _tokenize(str(meta.get(self._text_field, "")))
+
+        if self._dim is None:
+            self._dim = len(embedding)
+
         idx = len(self._vectors)
         self._vectors.append(normalized)
-        meta = metadata or {}
         self._metadata.append(meta)
-        self._corpus.append(_tokenize(meta.get(self._text_field, "")))
+        self._corpus.append(tokens)
         return idx
 
     def add_many(self, embeddings: list[list[float]], metadatas: list[dict[str, Any]] | None = None) -> list[int]:
@@ -135,15 +140,14 @@ class VectorStore:
                 raise ValueError(f"Dimension mismatch: expected {self._dim}, got {len(embedding)}.")
             self._vectors[id] = _normalize(embedding)
         if metadata is not None:
-            self._metadata[id] = metadata
-            self._corpus[id] = _tokenize(metadata.get(self._text_field, ""))
+            self._metadata[id] = dict(metadata)
+            self._corpus[id] = _tokenize(str(metadata.get(self._text_field, "")))
 
     def save(self) -> None:
         """Flush all data to disk, compacting deleted entries."""
         active_ids = [i for i in range(len(self._vectors)) if i not in self._deleted]
 
         if not active_ids:
-            # Wipe files if store is empty
             for p in (self._vecs_path, self._meta_path):
                 if os.path.exists(p):
                     os.remove(p)
@@ -157,14 +161,28 @@ class VectorStore:
         count = len(active_ids)
         vec_fmt = f"{dim}f"
 
-        with open(self._vecs_path, "wb") as f:
-            f.write(struct.pack(_HEADER_FMT, dim, count))
-            for i in active_ids:
-                f.write(struct.pack(vec_fmt, *self._vectors[i]))
-
+        # Serialize JSON first — catches non-serializable metadata before touching files
         meta_out = [self._metadata[i] for i in active_ids]
-        with open(self._meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta_out, f)
+        meta_json = json.dumps(meta_out)
+
+        vecs_tmp = self._vecs_path + ".tmp"
+        meta_tmp = self._meta_path + ".tmp"
+        try:
+            with open(vecs_tmp, "wb") as f:
+                f.write(struct.pack(_HEADER_FMT, dim, count))
+                for i in active_ids:
+                    f.write(struct.pack(vec_fmt, *self._vectors[i]))
+
+            with open(meta_tmp, "w", encoding="utf-8") as f:
+                f.write(meta_json)
+
+            os.replace(vecs_tmp, self._vecs_path)
+            os.replace(meta_tmp, self._meta_path)
+        except Exception:
+            for p in (vecs_tmp, meta_tmp):
+                if os.path.exists(p):
+                    os.remove(p)
+            raise
 
         # Compact in-memory state to match saved state
         self._vectors = [self._vectors[i] for i in active_ids]
@@ -192,29 +210,37 @@ class VectorStore:
         text_query: when provided, hybrid search merges BM25 and semantic scores.
         alpha: weight for semantic score (1.0 = pure semantic, 0.0 = pure BM25).
         """
+        if top_k < 1:
+            raise ValueError(f"top_k must be >= 1, got {top_k}.")
+        if not (0.0 <= alpha <= 1.0):
+            raise ValueError(f"alpha must be in [0, 1], got {alpha}.")
         if not self._vectors:
             return []
-
-        q = _normalize(query)
-        sem_scores = [
-            _dot(q, vec) if i not in self._deleted else 0.0
-            for i, vec in enumerate(self._vectors)
-        ]
+        if self._dim is not None and len(query) != self._dim:
+            raise ValueError(f"Query dimension mismatch: expected {self._dim}, got {len(query)}.")
 
         if text_query is not None and alpha == 1.0:
             warnings.warn("text_query has no effect when alpha=1.0; use alpha < 1.0 for hybrid search.")
+
+        q = _normalize(query)
+        active = [i for i in range(len(self._vectors)) if i not in self._deleted]
+
+        if not active:
+            return []
+
+        sem_scores = [_dot(q, self._vectors[i]) for i in active]
+
         if text_query is not None and alpha < 1.0:
-            bm25_scores = _bm25(_tokenize(text_query), self._corpus, self._deleted)
+            bm25_raw = _bm25(_tokenize(text_query), self._corpus, self._deleted)
+            bm25_scores = [bm25_raw[i] for i in active]
             sem_norm = _minmax(sem_scores)
             bm25_norm = _minmax(bm25_scores)
-            scores = [alpha * s + (1.0 - alpha) * b for s, b in zip(sem_norm, bm25_norm)]
+            final_scores = [alpha * s + (1.0 - alpha) * b for s, b in zip(sem_norm, bm25_norm)]
         else:
-            scores = sem_scores
+            final_scores = sem_scores
 
         results = []
-        for i, score in enumerate(scores):
-            if i in self._deleted:
-                continue
+        for i, score in zip(active, final_scores):
             if filter and not _matches(self._metadata[i], filter):
                 continue
             results.append((self._metadata[i], score))
@@ -234,9 +260,14 @@ class VectorStore:
         top_k: int = 5,
         radius: float | None = None,
         filter: dict[str, Any] | None = None,
+        text_query: str | None = None,
+        alpha: float = 0.5,
     ) -> list[list[tuple[dict[str, Any], float]]]:
         """Batch search. Returns a list of result lists, one per query."""
-        return [self.search(q, top_k=top_k, radius=radius, filter=filter) for q in queries]
+        return [
+            self.search(q, top_k=top_k, radius=radius, filter=filter, text_query=text_query, alpha=alpha)
+            for q in queries
+        ]
 
     # ------------------------------------------------------------------
     # Introspection
@@ -254,16 +285,34 @@ class VectorStore:
 
     def _load(self) -> None:
         with open(self._vecs_path, "rb") as f:
-            dim, count = struct.unpack(_HEADER_FMT, f.read(_HEADER_SIZE))
-            self._dim = dim
+            header = f.read(_HEADER_SIZE)
+            if len(header) < _HEADER_SIZE:
+                raise ValueError("Corrupt .vecs: header too short.")
+            dim, count = struct.unpack(_HEADER_FMT, header)
+            if dim == 0:
+                raise ValueError("Corrupt .vecs: dim=0 is invalid.")
+            expected_size = _HEADER_SIZE + count * dim * 4
+            f.seek(0, 2)
+            actual_size = f.tell()
+            if actual_size != expected_size:
+                raise ValueError(
+                    f"Corrupt .vecs: expected {expected_size} bytes, got {actual_size}."
+                )
+            f.seek(_HEADER_SIZE)
             vec_fmt = f"{dim}f"
             vec_size = struct.calcsize(vec_fmt)
+            self._dim = dim
             self._vectors = [list(struct.unpack(vec_fmt, f.read(vec_size))) for _ in range(count)]
 
         with open(self._meta_path, "r", encoding="utf-8") as f:
             self._metadata = json.load(f)
 
-        self._corpus = [_tokenize(m.get(self._text_field, "")) for m in self._metadata]
+        if len(self._metadata) != count:
+            raise ValueError(
+                f"Corrupt store: .vecs has {count} vectors but .json has {len(self._metadata)} entries."
+            )
+
+        self._corpus = [_tokenize(str(m.get(self._text_field, ""))) for m in self._metadata]
 
 
 def _matches(metadata: dict[str, Any], filter: dict[str, Any]) -> bool:
