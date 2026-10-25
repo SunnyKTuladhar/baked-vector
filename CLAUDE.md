@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Never commit or push without explicit user approval.
 
+Never run `uv publish` or any PyPI publish command locally. All publishing to PyPI (including TestPyPI) must go through GitHub Actions.
+
 ## Versioning
 
 Follow semantic versioning: MAJOR.MINOR.PATCH
