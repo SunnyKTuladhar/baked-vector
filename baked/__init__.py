@@ -22,4 +22,8 @@ __all__ = [
     "chunk_paragraphs",
     "chunk_recursive",
 ]
-__version__ = "0.3.0"
+from importlib.metadata import version as _v, PackageNotFoundError as _E
+try:
+    __version__ = _v("baked-vector")
+except _E:
+    __version__ = "unknown"
