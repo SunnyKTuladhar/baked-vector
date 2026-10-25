@@ -24,7 +24,7 @@ and reuse them to compare embedding models or search configurations cheaply.
 from __future__ import annotations
 
 import json
-import re
+import os
 from typing import Any, Callable
 
 from .harness import EvalPair
@@ -40,7 +40,9 @@ Do not ask vague or generic questions.
 Return ONLY a JSON array of strings. No explanation, no markdown fences, no extra text.
 
 Text:
-{text}"""
+\"\"\"
+{text}
+\"\"\""""
 
 
 def generate_pairs(
@@ -68,21 +70,29 @@ def generate_pairs(
         questions = _extract_json_list(response)
         for q in questions:
             if isinstance(q, str) and q.strip():
-                pairs.append(EvalPair(query=q.strip(), expected=metadata))
+                pairs.append(EvalPair(query=q.strip(), expected=dict(metadata)))
     return pairs
 
 
 def _extract_json_list(text: str) -> list:
-    match = re.search(r"\[.*?\]", text, re.DOTALL)
-    if match:
+    # Try the full response first (LLM returned clean JSON)
+    try:
+        result = json.loads(text.strip())
+        if isinstance(result, list):
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    # Fall back: find first '[' to last ']'
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end != -1 and end > start:
         try:
-            return json.loads(match.group())
+            return json.loads(text[start : end + 1])
         except json.JSONDecodeError:
             pass
-    try:
-        return json.loads(text.strip())
-    except json.JSONDecodeError:
-        return []
+
+    return []
 
 
 def openai_llm(model: str = "gpt-4o-mini", api_key: str | None = None) -> LLMFn:
@@ -100,12 +110,12 @@ def openai_llm(model: str = "gpt-4o-mini", api_key: str | None = None) -> LLMFn:
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
         )
-        return resp.choices[0].message.content
+        return resp.choices[0].message.content or ""
 
     return llm
 
 
-def groq_llm(model: str = "openai/gpt-oss-120b", api_key: str | None = None) -> LLMFn:
+def groq_llm(model: str = "llama-3.3-70b-versatile", api_key: str | None = None) -> LLMFn:
     """LLM factory using Groq's OpenAI-compatible API (install baked-vector[openai])."""
     try:
         from openai import OpenAI
@@ -113,7 +123,7 @@ def groq_llm(model: str = "openai/gpt-oss-120b", api_key: str | None = None) -> 
         raise ImportError("pip install baked-vector[openai]")
 
     client = OpenAI(
-        api_key=api_key,
+        api_key=api_key or os.environ.get("GROQ_API_KEY"),
         base_url="https://api.groq.com/openai/v1",
     )
 
@@ -123,7 +133,7 @@ def groq_llm(model: str = "openai/gpt-oss-120b", api_key: str | None = None) -> 
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
         )
-        return resp.choices[0].message.content
+        return resp.choices[0].message.content or ""
 
     return llm
 
@@ -141,8 +151,9 @@ def anthropic_llm(model: str = "claude-haiku-5-5", api_key: str | None = None) -
         msg = client.messages.create(
             model=model,
             max_tokens=1024,
+            temperature=0.3,
             messages=[{"role": "user", "content": prompt}],
         )
-        return msg.content[0].text
+        return "".join(block.text for block in msg.content if hasattr(block, "text"))
 
     return llm

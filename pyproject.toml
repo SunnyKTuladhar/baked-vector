@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,11 +7,26 @@ name = "baked-vector"
 version = "0.2.0"
 description = "Zero-dependency vector store for small-scale embedding search."
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
+keywords = ["vector", "embedding", "search", "rag", "bm25", "semantic-search", "nlp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 
 [project.urls]
-Repository = "https://github.com/sunnytuladhar/baked-vector"
+Homepage = "https://github.com/SunnyKTuladhar/baked-vector"
+Repository = "https://github.com/SunnyKTuladhar/baked-vector"
+Issues = "https://github.com/SunnyKTuladhar/baked-vector/issues"
 
 [project.optional-dependencies]
 st = ["sentence-transformers>=3.0"]

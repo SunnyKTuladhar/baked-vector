@@ -85,10 +85,13 @@ def chunk_sentences(text: str, max_size: int = 512, overlap: int = 1) -> list[st
         added_len = len(sent) + (1 if current else 0)
         if current and current_len + added_len > max_size:
             _flush()
-            # carry overlap sentences into next chunk
+            # carry overlap sentences into next chunk, capped to max_size
             tail = current[-overlap:] if overlap else []
             current = list(tail)
             current_len = sum(len(s) for s in current) + max(0, len(current) - 1)
+            while current and current_len > max_size and len(current) > 1:
+                current.pop(0)
+                current_len = sum(len(s) for s in current) + max(0, len(current) - 1)
 
         current.append(sent)
         current_len += len(sent) + (1 if len(current) > 1 else 0)
@@ -139,11 +142,13 @@ def chunk_paragraphs(text: str, max_size: int = 1024, overlap: int = 0) -> list[
         added_len = len(para) + (sep_len if current else 0)
         if current and current_len + added_len > max_size:
             _flush()
+            # carry overlap paragraphs into next chunk, capped to max_size
             tail = current[-overlap:] if overlap else []
             current = list(tail)
-            current_len = (
-                sum(len(p) for p in current) + sep_len * max(0, len(current) - 1)
-            )
+            current_len = sum(len(p) for p in current) + sep_len * max(0, len(current) - 1)
+            while current and current_len > max_size and len(current) > 1:
+                current.pop(0)
+                current_len = sum(len(p) for p in current) + sep_len * max(0, len(current) - 1)
 
         current.append(para)
         current_len += len(para) + (sep_len if len(current) > 1 else 0)
