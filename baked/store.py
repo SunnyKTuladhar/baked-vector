@@ -16,10 +16,12 @@ _BM25_B = 0.75
 def _normalize(vec: list[float]) -> list[float]:
     if not all(math.isfinite(x) for x in vec):
         raise ValueError("Vector contains NaN or infinite values.")
-    magnitude = math.sqrt(sum(x * x for x in vec))
-    if magnitude == 0.0:
+    max_abs = max(abs(x) for x in vec)
+    if max_abs == 0.0:
         raise ValueError("Cannot normalize a zero vector.")
-    return [x / magnitude for x in vec]
+    scaled = [x / max_abs for x in vec]
+    magnitude = math.sqrt(sum(x * x for x in scaled))
+    return [x / magnitude for x in scaled]
 
 
 def _dot(a: list[float], b: list[float]) -> float:
@@ -33,7 +35,7 @@ def _tokenize(text: str) -> list[str]:
 def _minmax(scores: list[float]) -> list[float]:
     mn, mx = min(scores), max(scores)
     if mx == mn:
-        return [0.0] * len(scores)
+        return [1.0 if mx != 0.0 else 0.0] * len(scores)
     return [(s - mn) / (mx - mn) for s in scores]
 
 

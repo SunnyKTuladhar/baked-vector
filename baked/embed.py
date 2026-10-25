@@ -61,7 +61,8 @@ class EmbeddingStore:
             raise ValueError("At least one of text or metadata must be provided.")
         if text is not None:
             vec = self._embed(text)
-            merged_meta = {**(metadata or {}), self._text_field: text}
+            existing = dict(self._store._metadata[id])
+            merged_meta = {**existing, **(metadata or {}), self._text_field: text}
             self._store.update(id, embedding=vec, metadata=merged_meta)
         else:
             # Metadata-only update: preserve existing text field

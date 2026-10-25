@@ -259,6 +259,10 @@ def _merge(
                 ov_len = candidate
             current = ov
             current_len = ov_len
+            # Drop overlap from front until overlap + new piece fits.
+            while current and current_len + sep_len + piece_len > size:
+                current.pop(0)
+                current_len = sum(len(p) for p in current) + sep_len * max(0, len(current) - 1)
 
         current.append(piece)
         current_len = (
