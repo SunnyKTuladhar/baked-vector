@@ -231,6 +231,64 @@ def test_update_neither_raises(tmp_path):
         store.update(0)
 
 
+# ------------------------------------------------------------------
+# Hybrid search tests
+# ------------------------------------------------------------------
+
+def test_hybrid_search_keyword_wins(tmp_path):
+    """alpha=0 (pure BM25) ranks keyword match above semantic match."""
+    store = VectorStore(str(tmp_path / "db"))
+    store.add(make_vec(0), {"text": "python machine learning tutorial"})
+    store.add(make_vec(89), {"text": "python snake reptile habitat"})
+
+    # Semantically, make_vec(0) and make_vec(0) are identical — both score 1.0.
+    # BM25 should separate them: "snake" only in doc 1.
+    results = store.search(make_vec(0), top_k=2, text_query="snake reptile", alpha=0.0)
+    assert results[0][0]["text"] == "python snake reptile habitat"
+
+
+def test_hybrid_search_semantic_wins(tmp_path):
+    """alpha=1 (pure semantic) ignores keyword and ranks by vector proximity."""
+    store = VectorStore(str(tmp_path / "db"))
+    store.add(make_vec(0), {"text": "completely unrelated words foo bar"})
+    store.add(make_vec(89), {"text": "python machine learning neural network"})
+
+    # make_vec(0) is closest to doc 0 semantically
+    results = store.search(make_vec(0), top_k=1, text_query="neural network", alpha=1.0)
+    assert results[0][0]["text"] == "completely unrelated words foo bar"
+
+
+def test_hybrid_search_balanced(tmp_path):
+    """alpha=0.5 returns results (smoke test, no crash)."""
+    store = VectorStore(str(tmp_path / "db"))
+    store.add(make_vec(0), {"text": "apple banana cherry"})
+    store.add(make_vec(45), {"text": "dog elephant fox"})
+    store.add(make_vec(90), {"text": "apple fruit salad"})
+
+    results = store.search(make_vec(0), top_k=3, text_query="apple", alpha=0.5)
+    assert len(results) == 3
+
+
+def test_hybrid_search_no_text_field(tmp_path):
+    """Docs with no text field still participate — BM25 score is 0."""
+    store = VectorStore(str(tmp_path / "db"))
+    store.add(make_vec(0), {"label": "no text here"})
+    store.add(make_vec(45), {"text": "python tutorial"})
+
+    results = store.search(make_vec(0), top_k=2, text_query="python", alpha=0.5)
+    assert len(results) == 2
+
+
+def test_hybrid_search_custom_text_field(tmp_path):
+    """custom text_field is used for BM25 indexing."""
+    store = VectorStore(str(tmp_path / "db"), text_field="body")
+    store.add(make_vec(0), {"body": "ocean wave surf beach"})
+    store.add(make_vec(89), {"body": "mountain snow ski slope"})
+
+    results = store.search(make_vec(0), top_k=2, text_query="mountain ski", alpha=0.0)
+    assert results[0][0]["body"] == "mountain snow ski slope"
+
+
 def test_update_persists_after_save(tmp_path):
     """Updated vector and metadata survive a save/reload cycle."""
     path = str(tmp_path / "db")

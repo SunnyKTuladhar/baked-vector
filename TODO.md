@@ -2,12 +2,14 @@
 
 ## Release
 
-### Publish to PyPI
-- Create account at pypi.org + enable 2FA
-- Create API token (scoped to `baked-vector`)
-- Verify name is free: `pypi.org/project/baked-vector`
-- Test on TestPyPI first: `uv publish --publish-url https://test.pypi.org/legacy/ --token testpypi-...`
-- Publish: `uv build && uv publish --token pypi-...`
+### Publish to PyPI ✓
+- ~~Create account at pypi.org + enable 2FA~~
+- ~~Verify name is free: `pypi.org/project/baked-vector`~~
+- ~~Publish: `uv build && uv publish`~~
+- `0.1.0` live at https://pypi.org/project/baked-vector/
+- OIDC trusted publisher configured (no API tokens)
+- Push to `main` → auto-publish to TestPyPI
+- Push tag `v*` → auto-publish to PyPI
 
 ---
 
@@ -19,11 +21,11 @@ Feature backlog for baked-vector, ordered by priority for RAG / chatbot use case
 
 ## Priority 1 — Core RAG gaps
 
-### Hybrid Search
-**Keyword (BM25-style) + semantic search, merged via Reciprocal Rank Fusion (RRF).**
-- Pure Python BM25 is ~30 lines, zero deps
-- Biggest single retrieval quality improvement for RAG — semantic alone misses exact keyword matches
-- `store.search(query, top_k=5, alpha=0.5)` where alpha balances keyword vs semantic weight
+### Hybrid Search ✓
+- BM25 + semantic, merged via min-max normalized weighted sum
+- `store.search(query, text_query="...", alpha=0.5)` — alpha=1.0 pure semantic, alpha=0.0 pure BM25
+- `VectorStore(path, text_field="text")` — configurable BM25 field
+- Zero new dependencies
 
 ### Namespaces / Collections
 **Multiple logical stores in one file path.**
