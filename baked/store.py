@@ -3,6 +3,7 @@ import math
 import re
 import struct
 import os
+import warnings
 from typing import Any
 
 _HEADER_FMT = "II"  # dim, count — both unsigned int
@@ -148,6 +149,7 @@ class VectorStore:
                     os.remove(p)
             self._vectors = []
             self._metadata = []
+            self._corpus = []
             self._deleted = set()
             return
 
@@ -199,6 +201,8 @@ class VectorStore:
             for i, vec in enumerate(self._vectors)
         ]
 
+        if text_query is not None and alpha == 1.0:
+            warnings.warn("text_query has no effect when alpha=1.0; use alpha < 1.0 for hybrid search.")
         if text_query is not None and alpha < 1.0:
             bm25_scores = _bm25(_tokenize(text_query), self._corpus, self._deleted)
             sem_norm = _minmax(sem_scores)

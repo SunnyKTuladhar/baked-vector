@@ -21,11 +21,11 @@ Feature backlog for baked-vector, ordered by priority for RAG / chatbot use case
 
 ## Priority 1 — Core RAG gaps
 
-### Hybrid Search
-**Keyword (BM25-style) + semantic search, merged via Reciprocal Rank Fusion (RRF).**
-- Pure Python BM25 is ~30 lines, zero deps
-- Biggest single retrieval quality improvement for RAG — semantic alone misses exact keyword matches
-- `store.search(query, top_k=5, alpha=0.5)` where alpha balances keyword vs semantic weight
+### Hybrid Search ✓
+- BM25 + semantic, merged via min-max normalized weighted sum
+- `store.search(query, text_query="...", alpha=0.5)` — alpha=1.0 pure semantic, alpha=0.0 pure BM25
+- `VectorStore(path, text_field="text")` — configurable BM25 field
+- Zero new dependencies
 
 ### Namespaces / Collections
 **Multiple logical stores in one file path.**
