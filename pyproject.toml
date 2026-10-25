@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "baked-vector"
-version = "0.2.0"
+version = "0.3.0"
 description = "Zero-dependency vector store for small-scale embedding search."
 requires-python = ">=3.11"
 license = "MIT"
